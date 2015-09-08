@@ -1,6 +1,6 @@
 Summary:	Signing utility for UEFI binaries
 Name:		pesign
-Version:	0.108
+Version:	0.110
 Release:	1
 Group:		Development/Other
 License:	GPLv2
