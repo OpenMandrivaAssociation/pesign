@@ -6,7 +6,7 @@ Group:		Development/Other
 License:	GPLv2
 URL:		https://github.com/rhinstaller/pesign
 Source0:	https://github.com/rhinstaller/pesign/releases/download/%{version}/%{name}-%{version}.tar.bz2
-BuildRequires:	git
+BuildRequires:	pkgconfig(efivar)
 BuildRequires:	gnu-efi
 BuildRequires:	nspr-devel
 BuildRequires:	nss-devel
