@@ -4,27 +4,20 @@ Version:	0.110
 Release:	1
 Group:		Development/Other
 License:	GPLv2
-URL:		https://github.com/vathpela/pesign
+URL:		https://github.com/rhinstaller/pesign
+Source0:	https://github.com/rhinstaller/pesign/releases/download/%{version}/%{name}-%{version}.tar.bz2
 BuildRequires:	git
 BuildRequires:	gnu-efi
-BuildRequires:	nspr
-BuildRequires:	nss
+BuildRequires:	nspr-devel
 BuildRequires:	nss-devel
 BuildRequires:	popt-devel
-BuildRequires:	coolkey
-BuildRequires:	opensc
-BuildRequires:	nspr-devel >= 4.9.2-1
-BuildRequires:	nss-devel >= 3.13.6-1
-Requires:	nspr
+BuildRequires:	opensc-devel
 Requires:	nss
-Requires:	nss-devel
 Requires:	popt
 Requires:	rpm
-Requires:	coolkey
 Requires:	opensc
-Requires(pre): shadow
-ExclusiveArch: %{ix86} x86_64
-Source0: pesign-%{version}.tar.bz2
+Requires(pre):	shadow
+ExclusiveArch:	%{ix86} x86_64
 
 %description
 This package contains the pesign utility for signing UEFI binaries as
@@ -34,13 +27,13 @@ well as other associated tools.
 %setup -q
 
 %build
-make PREFIX=%{_prefix} LIBDIR=%{_libdir}
+%make PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
 %install
 mkdir -p %{buildroot}/%{_libdir}
 
 make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} install
-make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} install_systemd
+make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} UNITDIR="/lib/systemd/system" install_systemd
 
 # there's some stuff that's not really meant to be shipped yet
 rm -rf %{buildroot}/boot %{buildroot}/usr/include
@@ -62,16 +55,6 @@ getent group pesign >/dev/null || groupadd -r pesign
 getent passwd pesign >/dev/null || \
 	useradd -r -g pesign -d /var/run/pesign -s /sbin/nologin \
 		-c "Group for the pesign signing daemon" pesign
-exit 0
-
-%post
-%systemd_post pesign.service
-
-%preun
-%systemd_preun pesign.service
-
-%postun
-%systemd_postun_with_restart pesign.service
 
 %files
 %doc README TODO COPYING
