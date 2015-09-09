@@ -6,6 +6,8 @@ Group:		Development/Other
 License:	GPLv2
 URL:		https://github.com/rhinstaller/pesign
 Source0:	https://github.com/rhinstaller/pesign/releases/download/%{version}/%{name}-%{version}.tar.bz2
+Patch0:		pesign-efivar-pkgconfig.patch
+Patch1:		pesign-make-efi_guid_t-const.patch
 BuildRequires:	pkgconfig(efivar)
 BuildRequires:	gnu-efi
 BuildRequires:	nspr-devel
@@ -25,6 +27,7 @@ well as other associated tools.
 
 %prep
 %setup -q
+%apply_patches
 
 %build
 %make PREFIX=%{_prefix} LIBDIR=%{_libdir}

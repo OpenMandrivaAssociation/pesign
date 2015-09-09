@@ -1,0 +1,28 @@
+From 2a1de2b6535161b1bd600ec2262e81e9f7aeffcc Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Tue, 26 May 2015 09:43:10 -0400
+Subject: [PATCH] Make efivar compiler parameters come from pkg-config.
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/Makefile | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/Makefile b/src/Makefile
+index 007505c..dd69425 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -3,8 +3,8 @@ TOPDIR = $(SRCDIR)/..
+ 
+ include $(TOPDIR)/Make.defaults
+ 
+-PKLIBS = nss
+-LIBS = popt uuid efivar
++PKLIBS = nss efivar
++LIBS = popt uuid
+ STATIC_LIBS = $(TOPDIR)/libdpe/libdpe.a
+ LDFLAGS =
+ CCLDFLAGS = -L../libdpe $(foreach pklib,$(PKLIBS), $(shell pkg-config --libs-only-L $(pklib))) -pie -fPIE -Wl,-z,relro,-z,now
+-- 
+2.1.4
+
