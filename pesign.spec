@@ -13,6 +13,7 @@ BuildRequires:	pkgconfig(uuid)
 BuildRequires:	gnu-efi
 BuildRequires:	nspr-devel
 BuildRequires:	nss-devel
+BuildRequires:	nss
 BuildRequires:	popt-devel
 BuildRequires:	opensc-devel
 Requires:	nss
@@ -43,7 +44,7 @@ make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} UNITDIR="/lib/
 rm -rf %{buildroot}/boot %{buildroot}/usr/include
 rm -rf %{buildroot}%{_lib}/libdpe*
 
-modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc \
+/usr/bin/modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc \
 	-libfile %{_libdir}/pkcs11/opensc-pkcs11.so
 
 # rpm5 is cute
