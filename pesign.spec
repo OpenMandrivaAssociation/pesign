@@ -45,7 +45,7 @@ rm -rf %{buildroot}/boot %{buildroot}/usr/include
 rm -rf %{buildroot}%{_lib}/libdpe*
 
 /usr/bin/modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc \
-	-libfile %{_libdir}/pkcs11/opensc-pkcs11.so
+	-libfile %{_libdir}/opensc-pkcs11.so
 
 # rpm5 is cute
 mkdir -p %{buildroot}%{_sysconfdir}/rpm/macros.d
