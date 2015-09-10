@@ -9,6 +9,7 @@ Source0:	https://github.com/rhinstaller/pesign/releases/download/%{version}/%{na
 Patch0:		pesign-efivar-pkgconfig.patch
 Patch1:		pesign-make-efi_guid_t-const.patch
 BuildRequires:	pkgconfig(efivar)
+BuildRequires:	pkgconfig(uuid)
 BuildRequires:	gnu-efi
 BuildRequires:	nspr-devel
 BuildRequires:	nss-devel
