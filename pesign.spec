@@ -42,7 +42,7 @@ make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} UNITDIR="/lib/
 
 # there's some stuff that's not really meant to be shipped yet
 rm -rf %{buildroot}/boot %{buildroot}/usr/include
-rm -rf %{buildroot}%{_lib}/libdpe*
+rm -rf %{buildroot}%{_libdir}/libdpe*
 
 /usr/bin/modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc-pkcs11 \
 	-libfile %{_libdir}/opensc-pkcs11.so
