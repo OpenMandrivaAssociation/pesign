@@ -44,7 +44,7 @@ make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} UNITDIR="/lib/
 rm -rf %{buildroot}/boot %{buildroot}/usr/include
 rm -rf %{buildroot}%{_libdir}/libdpe*
 
-/usr/bin/modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc \
+OPENSC_DEBUG=9 /usr/bin/modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc \
 	-libfile %{_libdir}/opensc-pkcs11.so
 
 # rpm5 is cute
