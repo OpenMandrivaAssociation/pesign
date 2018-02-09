@@ -30,6 +30,7 @@ well as other associated tools.
 %apply_patches
 
 %build
+%global optflags %{optflags} -Qunused-arguments
 %setup_compile_flags
 %make PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
