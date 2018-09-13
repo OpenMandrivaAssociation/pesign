@@ -30,7 +30,9 @@ This package contains the pesign utility for signing UEFI binaries as
 well as other associated tools.
 
 %prep
-%autosetup -p1
+%setup -q -T -b 0
+%setup -q -T -D -c -n pesign-%{version}/ -a 1
+%autopatch -p1
 
 %build
 %global optflags %{optflags} -Qunused-arguments
