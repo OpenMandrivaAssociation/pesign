@@ -6,6 +6,10 @@ Group:		Development/Other
 License:	GPLv2
 URL:		https://github.com/rhinstaller/pesign
 Source0:	https://github.com/rhinstaller/pesign/releases/download/%{version}/%{name}-%{version}.tar.bz2
+Source1:	certs.tar.xz
+Patch0001:	0001-cms-kill-generate_integer-it-doesn-t-build-on-i686-a.patch
+Patch0002:	0002-Fix-command-line-parsing.patch
+Patch0003:	0013-Document-implicit-fallthrough.patch
 BuildRequires:	pkgconfig(efivar)
 BuildRequires:	pkgconfig(uuid)
 BuildRequires:	gnu-efi
@@ -19,20 +23,19 @@ Requires:	popt
 Requires:	rpm
 Requires:	opensc
 Requires(pre):	shadow
-ExclusiveArch:	%{ix86} x86_64
+ExclusiveArch:	%{ix86} %{x86_64}
 
 %description
 This package contains the pesign utility for signing UEFI binaries as
 well as other associated tools.
 
 %prep
-%setup -q
-%apply_patches
+%autosetup -p1
 
 %build
 %global optflags %{optflags} -Qunused-arguments
 %setup_compile_flags
-%make PREFIX=%{_prefix} LIBDIR=%{_libdir}
+%make_build PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
 %install
 mkdir -p %{buildroot}/%{_libdir}
