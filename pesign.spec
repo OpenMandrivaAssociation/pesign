@@ -40,7 +40,7 @@ well as other associated tools.
 #https://github.com/rhboot/pesign/issues/47
 export CC=gcc
 export CXX=g++
-%setup_compile_flags
+
 %make_build PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
 %install
