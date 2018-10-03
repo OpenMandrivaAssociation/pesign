@@ -35,7 +35,7 @@ well as other associated tools.
 %autopatch -p1
 
 %build
-%global optflags %{optflags} -Qunused-arguments
+%global optflags %{optflags} -Qunused-arguments -Wno-error=ignored-optimization-argument
 %setup_compile_flags
 %make_build PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
