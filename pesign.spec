@@ -37,6 +37,8 @@ Patch0026: 0026-Clean-up-gcc-command-lines-a-little.patch
 Patch0027: 0027-Make-pesign-users-groups-static-in-the-repo.patch
 Patch0028: 0028-rpm-Make-the-client-signer-use-the-fedora-values-unl.patch
 Patch0029: 0029-Make-macros.pesign-error-in-kojibuilder-if-we-don-t-.patch
+# Our own patches
+Patch1000: pesign-0.112-pass-linker-flags-correctly.patch
 BuildRequires:	pkgconfig(efivar)
 BuildRequires:	pkgconfig(uuid)
 BuildRequires:	gnu-efi
@@ -65,9 +67,6 @@ well as other associated tools.
 %build
 #global optflags %{optflags} -Qunused-arguments -Wno-error=ignored-optimization-argument
 #https://github.com/rhboot/pesign/issues/47
-export CC=gcc
-export CXX=g++
-
 %make_build PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
 %install
@@ -98,10 +97,18 @@ getent passwd pesign >/dev/null || \
 		-c "Group for the pesign signing daemon" pesign
 
 %files
-%doc README TODO COPYING
+%doc README TODO
+%doc %{_docdir}/%{name}-%{version}/COPYING
+%license COPYING
+%{_bindir}/authvar
+%{_bindir}/efisiglist
 %{_bindir}/pesign
 %{_bindir}/pesign-client
+%{_bindir}/pesigcheck
 %{_bindir}/efikeygen
+%dir %{_sysconfdir}/pesign
+%{_sysconfdir}/pesign/users
+%{_sysconfdir}/pesign/groups
 %{_sysconfdir}/popt.d/pesign.popt
 %{_sysconfdir}/rpm/macros.d/pesign.macros
 %{_mandir}/man*/*
@@ -110,3 +117,4 @@ getent passwd pesign >/dev/null || \
 %dir %attr(0770, pesign, pesign) %{_localstatedir}/run/%{name}
 %{_prefix}/lib/tmpfiles.d/pesign.conf
 %{_unitdir}/pesign.service
+%{_libexecdir}/pesign
