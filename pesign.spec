@@ -18,6 +18,7 @@ BuildRequires:	nss-devel
 BuildRequires:	nss
 BuildRequires:	popt-devel
 BuildRequires:	opensc-devel
+BuildRequires:	gcc gcc-c++
 Requires:	nss
 Requires:	popt
 Requires:	rpm
@@ -35,7 +36,10 @@ well as other associated tools.
 %autopatch -p1
 
 %build
-%global optflags %{optflags} -Qunused-arguments -Wno-error=ignored-optimization-argument
+#global optflags %{optflags} -Qunused-arguments -Wno-error=ignored-optimization-argument
+#https://github.com/rhboot/pesign/issues/47
+export CC=gcc
+export CXX=g++
 %setup_compile_flags
 %make_build PREFIX=%{_prefix} LIBDIR=%{_libdir}
 
