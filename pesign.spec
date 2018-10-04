@@ -100,7 +100,6 @@ getent passwd pesign >/dev/null || \
 %files
 %doc README TODO
 %doc %{_docdir}/%{name}-%{version}/COPYING
-%license COPYING
 %{_bindir}/authvar
 %{_bindir}/efisiglist
 %{_bindir}/pesign
