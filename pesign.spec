@@ -79,6 +79,11 @@ make PREFIX=%{_prefix} LIBDIR=%{_libdir} INSTALLROOT=%{buildroot} UNITDIR="/lib/
 rm -rf %{buildroot}/boot %{buildroot}/usr/include
 rm -rf %{buildroot}%{_libdir}/libdpe*
 
+mkdir -p %{buildroot}%{_sysconfdir}/pki/pesign/
+mkdir -p %{buildroot}%{_sysconfdir}/pki/pesign-rh-test/
+cp -a etc/pki/pesign/* %{buildroot}%{_sysconfdir}/pki/pesign/
+cp -a etc/pki/pesign-rh-test/* %{buildroot}%{_sysconfdir}/pki/pesign-rh-test/
+
 # (tpg) disable it for now
 #OPENSC_DEBUG=9 /usr/bin/modutil -force -dbdir %{buildroot}/etc/pki/pesign -add opensc \
 #	-libfile %{_libdir}/opensc-pkcs11.so
