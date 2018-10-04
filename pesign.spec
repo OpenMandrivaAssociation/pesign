@@ -119,6 +119,8 @@ getent passwd pesign >/dev/null || \
 %{_mandir}/man*/*
 %dir %attr(0775,pesign,pesign) /etc/pki/pesign
 %attr(0664,pesign,pesign) /etc/pki/pesign/*
+%dir %attr(0775,pesign,pesign) %{_sysconfdir}/pki/pesign-rh-test/
+%attr(0664,pesign,pesign) %{_sysconfdir}/pki/pesign-rh-test/*
 %dir %attr(0770, pesign, pesign) %{_localstatedir}/run/%{name}
 %{_prefix}/lib/tmpfiles.d/pesign.conf
 %{_unitdir}/pesign.service
