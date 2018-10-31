@@ -1,7 +1,7 @@
 Summary:	Signing utility for UEFI binaries
 Name:		pesign
 Version:	0.112
-Release:	1
+Release:	2
 Group:		Development/Other
 License:	GPLv2
 URL:		https://github.com/rhinstaller/pesign
