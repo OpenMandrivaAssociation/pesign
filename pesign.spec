@@ -53,7 +53,6 @@ Requires:	popt
 Requires:	rpm
 Requires:	opensc
 Requires(pre):	shadow
-ExclusiveArch:	%{ix86} %{x86_64}
 
 %description
 This package contains the pesign utility for signing UEFI binaries as
