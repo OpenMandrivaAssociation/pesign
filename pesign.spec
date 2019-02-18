@@ -1,7 +1,7 @@
 Summary:	Signing utility for UEFI binaries
 Name:		pesign
 Version:	0.112
-Release:	2
+Release:	3
 Group:		Development/Other
 License:	GPLv2
 URL:		https://github.com/rhinstaller/pesign
@@ -94,6 +94,9 @@ mv %{buildroot}%{_sysconfdir}/rpm/macros.pesign %{buildroot}%{_sysconfdir}/rpm/m
 # confusion due to fedora /lib == /usr/lib
 mkdir -p %{buildroot}%{_unitdir}
 mv %{buildroot}/usr/lib/systemd/system/*.service %{buildroot}%{_unitdir}
+
+# No idea why they got this one wrong
+sed -i -e 's,/var/run,/run,g' %{buildroot}%{_prefix}/lib/tmpfiles.d/pesign.conf
 
 %pre
 getent group pesign >/dev/null || groupadd -r pesign
