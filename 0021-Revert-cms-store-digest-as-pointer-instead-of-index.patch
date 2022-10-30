@@ -1,0 +1,276 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Mon, 29 Aug 2022 16:22:18 -0400
+Subject: [PATCH] Revert "cms: store digest as pointer instead of index"
+
+In 926782c216532a83f9ff864dee39d2349d61fd23, we switched
+cms->selected_digest to be a pointer to the member of the digests array
+rather than an index.  Unfortunately this is just as bad, because the
+bugs that come up wind up setting pointers to NULL+(selected*offset),
+i.e. 0x10, and that doesn't get us any closer to actually finding any
+problem.
+
+For now, the new approach is going to be to make it an index again, but
+to default it to 0 (sha256) rather than -1, so if it isn't set at the
+correct part of the lifecycle it'll just default to the (nearly always)
+correct choice.
+
+This reverts commit 926782c216532a83f9ff864dee39d2349d61fd23.
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/certdb.c       | 15 +++++++--------
+ src/cms_common.c   | 34 ++++++++++++++++++++++++----------
+ src/content_info.c |  4 ++--
+ src/file_kmod.c    |  2 +-
+ src/file_pe.c      |  9 ++++-----
+ src/pesigcheck.c   |  4 +++-
+ src/cms_common.h   | 13 +------------
+ 7 files changed, 42 insertions(+), 39 deletions(-)
+
+diff --git a/src/certdb.c b/src/certdb.c
+index f512824..69d5daf 100644
+--- a/src/certdb.c
++++ b/src/certdb.c
+@@ -263,19 +263,18 @@ check_hash(pesigcheck_context *ctx, SECItem *sig, efi_guid_t *sigtype,
+ {
+ 	efi_guid_t efi_sha256 = efi_guid_sha256;
+ 	efi_guid_t efi_sha1 = efi_guid_sha1;
+-	void *digest_data;
+-	struct digest *digests = ctx->cms_ctx->digests;
++	void *digest;
+ 
+ 	if (memcmp(sigtype, &efi_sha256, sizeof(efi_guid_t)) == 0) {
+-		digest_data = digests[0].pe_digest->data;
+-		if (memcmp (digest_data, sig->data, 32) == 0) {
+-			ctx->cms_ctx->selected_digest = &digests[0];
++		digest = ctx->cms_ctx->digests[0].pe_digest->data;
++		if (memcmp (digest, sig->data, 32) == 0) {
++			ctx->cms_ctx->selected_digest = 0;
+ 			return FOUND;
+ 		}
+ 	} else if (memcmp(sigtype, &efi_sha1, sizeof(efi_guid_t)) == 0) {
+-		digest_data = digests[1].pe_digest->data;
+-		if (memcmp (digest_data, sig->data, 20) == 0) {
+-			ctx->cms_ctx->selected_digest = &digests[1];
++		digest = ctx->cms_ctx->digests[1].pe_digest->data;
++		if (memcmp (digest, sig->data, 20) == 0) {
++			ctx->cms_ctx->selected_digest = 1;
+ 			return FOUND;
+ 		}
+ 	}
+diff --git a/src/cms_common.c b/src/cms_common.c
+index 2275f67..86341ca 100644
+--- a/src/cms_common.c
++++ b/src/cms_common.c
+@@ -33,6 +33,15 @@
+ 
+ #include "hex.h"
+ 
++struct digest_param {
++	char *name;
++	SECOidTag digest_tag;
++	SECOidTag signature_tag;
++	SECOidTag digest_encryption_tag;
++	const efi_guid_t *efi_guid;
++	int size;
++};
++
+ static struct digest_param digest_params[] = {
+ 	{.name = "sha256",
+ 	 .digest_tag = SEC_OID_SHA256,
+@@ -56,25 +65,29 @@ static int n_digest_params = sizeof (digest_params) / sizeof (digest_params[0]);
+ SECOidTag
+ digest_get_digest_oid(cms_context *cms)
+ {
+-	return cms->selected_digest->digest_params->digest_tag;
++	int i = cms->selected_digest;
++	return digest_params[i].digest_tag;
+ }
+ 
+ SECOidTag
+ digest_get_encryption_oid(cms_context *cms)
+ {
+-	return cms->selected_digest->digest_params->digest_encryption_tag;
++	int i = cms->selected_digest;
++	return digest_params[i].digest_encryption_tag;
+ }
+ 
+ SECOidTag
+ digest_get_signature_oid(cms_context *cms)
+ {
+-	return cms->selected_digest->digest_params->signature_tag;
++	int i = cms->selected_digest;
++	return digest_params[i].signature_tag;
+ }
+ 
+ int
+ digest_get_digest_size(cms_context *cms)
+ {
+-	return cms->selected_digest->digest_params->size;
++	int i = cms->selected_digest;
++	return digest_params[i].size;
+ }
+ 
+ void
+@@ -129,6 +142,8 @@ cms_context_init(cms_context *cms)
+ 	if (!cms->arena)
+ 		cnreterr(-1, cms, "could not create cryptographic arena");
+ 
++	cms->selected_digest = -1;
++
+ 	INIT_LIST_HEAD(&cms->pk12_ins);
+ 	cms->pk12_out.fd = -1;
+ 	cms->db_out = cms->dbx_out = cms->dbt_out = -1;
+@@ -211,7 +226,7 @@ cms_context_fini(cms_context *cms)
+ 		memset(&cms->newsig, '\0', sizeof (cms->newsig));
+ 	}
+ 
+-	cms->selected_digest = NULL;
++	cms->selected_digest = -1;
+ 
+ 	if (cms->ci_digest) {
+ 		free_poison(cms->ci_digest->data, cms->ci_digest->len);
+@@ -336,7 +351,7 @@ set_digest_parameters(cms_context *cms, char *name)
+ 	if (strcmp(name, "help")) {
+ 		for (int i = 0; i < n_digest_params; i++) {
+ 			if (!strcmp(name, digest_params[i].name)) {
+-				cms->selected_digest = &cms->digests[i];
++				cms->selected_digest = i;
+ 				return 0;
+ 			}
+ 		}
+@@ -1264,7 +1279,6 @@ generate_digest_begin(cms_context *cms)
+ 			cngotoerr(err, cms, "could not create digest context");
+ 
+ 		PK11_DigestBegin(digests[i].pk11ctx);
+-		digests[i].digest_params = &digest_params[i];
+ 	}
+ 
+ 	cms->digests = digests;
+@@ -1337,11 +1351,11 @@ generate_signature(cms_context *cms)
+ {
+ 	int rc = 0;
+ 
+-	if (cms->selected_digest->pe_digest == NULL)
++	if (cms->digests[cms->selected_digest].pe_digest == NULL)
+ 		cnreterr(-1, cms, "PE digest has not been allocated");
+ 
+-	if (content_is_empty(cms->selected_digest->pe_digest->data,
+-			cms->selected_digest->pe_digest->len))
++	if (content_is_empty(cms->digests[cms->selected_digest].pe_digest->data,
++			cms->digests[cms->selected_digest].pe_digest->len))
+ 		cnreterr(-1, cms, "PE binary has not been digested");
+ 
+ 	SECItem sd_der;
+diff --git a/src/content_info.c b/src/content_info.c
+index 777aa28..9684850 100644
+--- a/src/content_info.c
++++ b/src/content_info.c
+@@ -181,8 +181,8 @@ generate_spc_digest_info(cms_context *cms, SECItem *dip)
+ 	if (generate_algorithm_id(cms, &di.digestAlgorithm,
+ 			digest_get_digest_oid(cms)) < 0)
+ 		return -1;
+-	memcpy(&di.digest, cms->selected_digest->pe_digest,
+-	       sizeof(di.digest));
++	int i = cms->selected_digest;
++	memcpy(&di.digest, cms->digests[i].pe_digest, sizeof (di.digest));
+ 
+ 	if (content_is_empty(di.digest.data, di.digest.len)) {
+ 		cms->log(cms, LOG_ERR, "got empty digest");
+diff --git a/src/file_kmod.c b/src/file_kmod.c
+index c8875fc..6880cda 100644
+--- a/src/file_kmod.c
++++ b/src/file_kmod.c
+@@ -60,7 +60,7 @@ ssize_t
+ kmod_write_signature(cms_context *cms, int outfd)
+ {
+ 	SEC_PKCS7ContentInfo *cinfo;
+-	SECItem *digest = cms->selected_digest->pe_digest;
++	SECItem *digest = cms->digests[cms->selected_digest].pe_digest;
+ 	SECStatus rv;
+ 	struct write_sig_info info = {
+ 		.outfd = outfd,
+diff --git a/src/file_pe.c b/src/file_pe.c
+index c22b2af..805e614 100644
+--- a/src/file_pe.c
++++ b/src/file_pe.c
+@@ -114,8 +114,6 @@ check_inputs(pesign_context *ctx)
+ static void
+ print_digest(pesign_context *pctx)
+ {
+-	unsigned int i;
+-
+ 	if (!pctx)
+ 		return;
+ 
+@@ -123,9 +121,10 @@ print_digest(pesign_context *pctx)
+ 	if (!ctx)
+ 		return;
+ 
+-	unsigned char *ddata = ctx->selected_digest->pe_digest->data;
+-	for (i = 0; i < ctx->selected_digest->pe_digest->len; i++)
+-		printf("%02x", ddata[i]);
++	int j = ctx->selected_digest;
++	for (unsigned int i = 0; i < ctx->digests[j].pe_digest->len; i++)
++		printf("%02x",
++			(unsigned char)ctx->digests[j].pe_digest->data[i]);
+ 	printf(" %s\n", pctx->infile);
+ }
+ 
+diff --git a/src/pesigcheck.c b/src/pesigcheck.c
+index ebb404d..6dc67f7 100644
+--- a/src/pesigcheck.c
++++ b/src/pesigcheck.c
+@@ -221,7 +221,9 @@ static void
+ get_digest(pesigcheck_context *ctx, SECItem *digest)
+ {
+ 	struct cms_context *cms = ctx->cms_ctx;
+-	memcpy(digest, cms->selected_digest->pe_digest, sizeof(*digest));
++	struct digest *cms_digest = &cms->digests[cms->selected_digest];
++
++	memcpy(digest, cms_digest->pe_digest, sizeof (*digest));
+ }
+ 
+ static int
+diff --git a/src/cms_common.h b/src/cms_common.h
+index c7d4f69..c7acbcf 100644
+--- a/src/cms_common.h
++++ b/src/cms_common.h
+@@ -12,7 +12,6 @@
+ #include <secpkcs7.h>
+ 
+ #include <errno.h>
+-#include <efivar.h>
+ #include <signal.h>
+ #include <stdarg.h>
+ #include <sys/types.h>
+@@ -58,19 +57,9 @@
+ 		goto errlabel;						\
+ 	})
+ 
+-struct digest_param {
+-	char *name;
+-	SECOidTag digest_tag;
+-	SECOidTag signature_tag;
+-	SECOidTag digest_encryption_tag;
+-	const efi_guid_t *efi_guid;
+-	int size;
+-};
+-
+ struct digest {
+ 	PK11Context *pk11ctx;
+ 	SECItem *pe_digest;
+-	struct digest_param *digest_params;
+ };
+ 
+ typedef struct pk12_file {
+@@ -144,7 +133,7 @@ typedef struct cms_context {
+ 	int db_out, dbx_out, dbt_out;
+ 
+ 	struct digest *digests;
+-	struct digest *selected_digest;
++	int selected_digest;
+ 	int omit_vendor_cert;
+ 
+ 	SECItem newsig;

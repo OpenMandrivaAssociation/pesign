@@ -1,0 +1,318 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Fri, 11 Mar 2022 12:54:39 -0500
+Subject: [PATCH] Add 'pesum', an authenticode digest generator.
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/pesum.c      | 195 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/.gitignore   |   1 +
+ src/Makefile     |  12 +++-
+ src/pesum.1.mdoc |  38 +++++++++++
+ 4 files changed, 244 insertions(+), 2 deletions(-)
+ create mode 100644 src/pesum.c
+ create mode 100644 src/pesum.1.mdoc
+
+diff --git a/src/pesum.c b/src/pesum.c
+new file mode 100644
+index 0000000..e4ddaf8
+--- /dev/null
++++ b/src/pesum.c
+@@ -0,0 +1,195 @@
++// SPDX-License-Identifier: GPLv2
++/*
++ * pesum.c - pesum command line tool
++ * Copyright Peter Jones <pjones@redhat.com>
++ */
++
++#include "fix_coverity.h"
++
++#include <err.h>
++#include <popt.h>
++
++#include <nss.h>
++#include <prerror.h>
++
++#include "pesign.h"
++#include "pesign_standalone.h"
++
++static struct {
++	int flag;
++	const char *name;
++} flag_names[] = {
++	{DAEMONIZE, "daemonize"},
++	{GENERATE_DIGEST, "hash"},
++	{GENERATE_SIGNATURE, "sign"},
++	{IMPORT_RAW_SIGNATURE, "import-raw-sig"},
++	{IMPORT_SIGNATURE, "import-sig"},
++	{IMPORT_SATTRS, "import-sattrs" },
++	{EXPORT_SATTRS, "export-sattrs" },
++	{EXPORT_SIGNATURE, "export-sig"},
++	{EXPORT_PUBKEY, "export-pubkey"},
++	{EXPORT_CERT, "export-cert"},
++	{REMOVE_SIGNATURE, "remove"},
++	{LIST_SIGNATURES, "list"},
++	{FLAG_LIST_END, NULL},
++};
++
++void
++print_flag_name(FILE *f, int flag)
++{
++	for (int i = 0; flag_names[i].flag != FLAG_LIST_END; i++) {
++		if (flag_names[i].flag == flag)
++			fprintf(f, "%s ", flag_names[i].name);
++	}
++}
++
++static long *verbose;
++
++long
++verbosity(void)
++{
++	if (!verbose)
++		return 0;
++	return *verbose;
++}
++
++int
++main(int argc, char *argv[])
++{
++	int rc;
++	SECStatus status;
++
++	char *digest_name = "sha256";
++	char *orig_digest_name = digest_name;
++	int padding = 1;
++	long verbose_cmd_line = 0;
++	const char *infile;
++
++	int action = GENERATE_DIGEST|PRINT_DIGEST;
++	file_format fmt = FORMAT_PE_BINARY;
++
++	setenv("NSS_DEFAULT_DB_TYPE", "sql", 0);
++
++	verbose = &verbose_cmd_line;
++
++	poptContext optCon;
++	struct poptOption options[] = {
++		{.argInfo = POPT_ARG_INTL_DOMAIN,
++		 .arg = "pesum" },
++		{.longName = "verbose",
++		 .shortName = 'v',
++		 .argInfo = POPT_ARG_VAL|POPT_ARG_LONG|POPT_ARGFLAG_OPTIONAL,
++		 .arg = &verbose_cmd_line,
++		 .val = 1,
++		 .descrip = "be more verbose" },
++		{.longName = "debug",
++		 .shortName = '\0',
++		 .argInfo = POPT_ARG_VAL|POPT_ARG_LONG|POPT_ARGFLAG_OPTIONAL,
++		 .arg = &verbose_cmd_line,
++		 .val = 2,
++		 .descrip = "be very verbose" },
++		{.longName = "digest-type",
++		 .shortName = 'd',
++		 .argInfo = POPT_ARG_STRING|POPT_ARGFLAG_SHOW_DEFAULT,
++		 .arg = &digest_name,
++		 .descrip = "digest type to use for pe hash" },
++		{.longName = "digest_type",
++		 .shortName = '\0',
++		 .argInfo = POPT_ARG_STRING|POPT_ARGFLAG_DOC_HIDDEN,
++		 .arg = &digest_name,
++		 .descrip = "digest type to use for pe hash" },
++		{.longName = "padding",
++		 .shortName = 'P',
++		 .argInfo = POPT_ARG_VAL,
++		 .arg = &padding,
++		 .val = 1,
++		 .descrip = "pad data section (default)" },
++		{.longName = "nopadding",
++		 .shortName = 'p',
++		 .argInfo = POPT_ARG_VAL,
++		 .arg = &padding,
++		 .val = 0,
++		 .descrip = "do not pad the data section" },
++		POPT_AUTOALIAS
++		POPT_AUTOHELP
++		POPT_TABLEEND
++	};
++
++	optCon = poptGetContext("pesum", argc, (const char **)argv, options,0);
++
++	rc = poptReadDefaultConfig(optCon, 0);
++	if (rc < 0 && !(rc == POPT_ERROR_ERRNO && errno == ENOENT))
++		errx(1, "poptReadDefaultConfig failed: %s", poptStrerror(rc));
++
++	while ((rc = poptGetNextOpt(optCon)) > 0) {
++		;
++	}
++
++	if (rc < -1)
++		errx(1, "Invalid argument: %s: %s",
++		     poptBadOption(optCon, 0), poptStrerror(rc));
++
++	if (!poptPeekArg(optCon))
++		errx(1, "nothing to do");
++
++	status = NSS_NoDB_Init(NULL);
++	if (status != SECSuccess)
++		errx(1, "Could not initialize nss.\n"
++		        "NSS says \"%s\" errno says \"%m\"\n",
++			PORT_ErrorToString(PORT_GetError()));
++
++	while ((infile = poptGetArg(optCon)) != NULL) {
++		pesign_context *ctxp = NULL;
++
++		char *ext = strrchr(infile, '.');
++		if (ext && strcmp(ext, ".ko") == 0)
++			fmt = FORMAT_KERNEL_MODULE;
++
++		rc = pesign_context_new(&ctxp);
++		if (rc < 0)
++			err(1, "Could not initialize context");
++
++		ctxp->verbose = verbose_cmd_line;
++
++		ctxp->hash = 1;
++		ctxp->infile = strdup(infile);
++		if (!ctxp->infile)
++			err(1, "Could not allocate memory");
++
++		rc = set_digest_parameters(ctxp->cms_ctx, digest_name);
++		int is_help = strcmp(digest_name, "help") ? 0 : 1;
++		if (rc < 0) {
++			if (!is_help) {
++				fprintf(stderr, "Digest \"%s\" not found.\n",
++					digest_name);
++			}
++			exit(!is_help);
++		}
++
++		errno = 0;
++		switch (fmt) {
++			case FORMAT_PE_BINARY:
++				pe_handle_action(ctxp, action, padding);
++				break;
++			case FORMAT_KERNEL_MODULE:
++				kmod_handle_action(ctxp, action);
++				break;
++		}
++
++		pesign_context_free(ctxp);
++	}
++
++	poptFreeContext(optCon);
++
++	if (digest_name && digest_name != orig_digest_name)
++		free(digest_name);
++
++	status = NSS_Shutdown();
++	if (status != SECSuccess)
++		errx(1, "could not shut down NSS: %s",
++		     PORT_ErrorToString(PORT_GetError()));
++
++	return 0;
++}
++
++// vim:fenc=utf-8:tw=75:noet
+diff --git a/src/.gitignore b/src/.gitignore
+index 64ce217..f8f6d66 100644
+--- a/src/.gitignore
++++ b/src/.gitignore
+@@ -5,6 +5,7 @@ client
+ efikeygen
+ efidbtool
+ pesigcheck
++pesum
+ peverify
+ pesign.service
+ pesign.sysvinit
+diff --git a/src/Makefile b/src/Makefile
+index 7010514..79cf09e 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -6,7 +6,7 @@ include $(TOPDIR)/Make.rules
+ include $(TOPDIR)/Make.defaults
+ 
+ BINTARGETS=authvar client efikeygen pesigcheck pesign \
+-	   pesign-rpmbuild-helper pesign-authorize
++	   pesign-rpmbuild-helper pesign-authorize pesum
+ CFGTARGETS=tmpfiles.conf
+ SVCTARGETS=pesign.sysvinit pesign.service
+ MAN1TARGETS=authvar.1 efikeygen.1 pesigcheck.1 pesign-client.1 pesign.1
+@@ -29,9 +29,12 @@ EFIKEYGEN_SOURCES = efikeygen.c
+ PESIGCHECK_SOURCES = pesigcheck.c pesigcheck_context.c certdb.c
+ PESIGN_SOURCES = pesign.c pesign_context.c actions.c daemon.c \
+ 		 file_pe.c file_kmod.c pesign_kmod.c
++PESUM_SOURCES = pesum.c pesign_context.c actions.c \
++		file_pe.c file_kmod.c pesign_kmod.c
+ 
+ ALL_SOURCES=$(COMMON_SOURCES) $(AUTHVAR_SORUCES) $(CLIENT_SOURCES) \
+-	$(EFIKEYGEN_SOURCES) $(PESIGCHECK_SOURCES) $(PESIGN_SOURCES)
++	$(EFIKEYGEN_SOURCES) $(PESIGCHECK_SOURCES) $(PESIGN_SOURCES) \
++	$(PESUM_SOURCES)
+ -include $(call deps-of,$(ALL_SOURCES))
+ 
+ authvar : $(call objects-of,$(AUTHVAR_SOURCES) $(COMMON_SOURCES))
+@@ -53,6 +56,10 @@ pesign : $(call objects-of,$(PESIGN_SOURCES) $(COMMON_SOURCES) $(COMMON_PE_SOURC
+ pesign : LDLIBS+=$(TOPDIR)/libdpe/libdpe.a
+ pesign : PKGS=efivar nss nspr popt
+ 
++pesum : $(call objects-of,$(PESUM_SOURCES) $(COMMON_SOURCES) $(COMMON_PE_SOURCES))
++pesum : LDLIBS+=$(TOPDIR)/libdpe/libdpe.a
++pesum : PKGS=efivar nss nspr popt
++
+ deps : PKGS=efivar nss nspr popt uuid
+ deps : $(ALL_SOURCES)
+ 	$(MAKE) -f $(TOPDIR)/Make.deps \
+@@ -81,6 +88,7 @@ install :
+ 	$(INSTALL) -d -m 755 $(INSTALLROOT)$(bindir)
+ 	$(INSTALL) -m 755 authvar $(INSTALLROOT)$(bindir)
+ 	$(INSTALL) -m 755 pesign $(INSTALLROOT)$(bindir)
++	$(INSTALL) -m 755 pesum $(INSTALLROOT)$(bindir)
+ 	$(INSTALL) -m 755 client $(INSTALLROOT)$(bindir)pesign-client
+ 	$(INSTALL) -m 755 efikeygen $(INSTALLROOT)$(bindir)
+ 	$(INSTALL) -m 755 pesigcheck $(INSTALLROOT)$(bindir)
+diff --git a/src/pesum.1.mdoc b/src/pesum.1.mdoc
+new file mode 100644
+index 0000000..edd08ce
+--- /dev/null
++++ b/src/pesum.1.mdoc
+@@ -0,0 +1,38 @@
++.Dd $Mdocdate: Mar 11 2022$
++.Dt PESUM 1
++.Os Linux
++.Sh NAME
++.Nm pesum
++.Nd tool for generating Authenticode digests
++.Sh SYNOPSIS
++.Nm
++.Bk -words
++.Ar file0.efi
++.Op Ar file1.efi ...
++.Sh DESCRIPTION
++.Nm
++is a command line tool to generate Authenticode digests of PE binaries.
++.Sh EXAMPLES
++.Ss Getting the Authenticode digest of some files
++host:$ \fBpesum shimx64.efi grubx64.efi\fR
++8c5806e66bb5b052ebf860e1722474269cff3dde588610df21dbe8cf12c08390\ shimx64.efi
++546a71319c22da1d81879383c4c74be06d1c374bdecfafc9fcc80bd541802bfc\ grubx64.efi
++.Sh STANDARDS
++.Rs
++.%B Portable Executable
++.%I Microsoft
++.%D August 26, 2019
++.%U https://docs.microsoft.com/en-us/windows/win32/debug/pe-format\ \&
++.Re
++
++.Rs
++.%B Windows Authenticode Portable Executable Signature Format
++.%I Microsoft
++.%D March 21, 2008
++.%U https://web.archive.org/web/20130518222430/http://download.microsoft.com/download/9/c/5/9c5b2167-8017-4bae-9fde-d599bac8184a/Authenticode_PE.docx\ \&
++.Re
++.Sh SEE ALSO
++.Xr pesign 1
++.LP
++.Sh AUTHORS
++.An Peter Jones

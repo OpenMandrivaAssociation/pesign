@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Fri, 11 Mar 2022 12:44:46 -0500
+Subject: [PATCH] pesign: print digests before filenames like sha256sum does
+
+Most digest tools print the digest before the filename, there's no
+reason pesign needs to be different.
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/file_pe.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/file_pe.c b/src/file_pe.c
+index fed6edb..805e614 100644
+--- a/src/file_pe.c
++++ b/src/file_pe.c
+@@ -121,12 +121,11 @@ print_digest(pesign_context *pctx)
+ 	if (!ctx)
+ 		return;
+ 
+-	printf("%s ", pctx->infile);
+ 	int j = ctx->selected_digest;
+ 	for (unsigned int i = 0; i < ctx->digests[j].pe_digest->len; i++)
+ 		printf("%02x",
+ 			(unsigned char)ctx->digests[j].pe_digest->data[i]);
+-	printf("\n");
++	printf(" %s\n", pctx->infile);
+ }
+ 
+ void

@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Julian Sikorski <belegdol+github@gmail.com>
+Date: Wed, 23 Mar 2022 20:54:03 +0100
+Subject: [PATCH] Fix building signed kernels on setups other than koji
+
+Thanks to Will Springer for the idea. Details at
+https://bugzilla.redhat.com/show_bug.cgi?id=1880858
+
+Signed-off-by: Julian Sikorski <belegdol+github@gmail.com>
+Suggested-by: Will Springer <skirmisher@protonmail.com>
+---
+ src/pesign-rpmbuild-helper.in | 24 +++++++++++-------------
+ 1 file changed, 11 insertions(+), 13 deletions(-)
+
+diff --git a/src/pesign-rpmbuild-helper.in b/src/pesign-rpmbuild-helper.in
+index 0a845d2..c9d5570 100644
+--- a/src/pesign-rpmbuild-helper.in
++++ b/src/pesign-rpmbuild-helper.in
+@@ -172,24 +172,22 @@ main() {
+     USERNAME="${USERNAME:-$(id -un)}"
+ 
+     local socket="" || :
+-    if grep -q ID=fedora /etc/os-release \
++    if [[ -S /run/pesign/socket ]] ; then
++        socket=/run/pesign/socket
++    elif [[ -S /var/run/pesign/socket ]]; then
++        socket=/var/run/pesign/socket
++    elif grep -q ID=fedora /etc/os-release \
+        && [[ "${rhelver}" -lt 7 ]] \
+        && [[ "${USERNAME}" = "mockbuild" ]] \
+        && [[ "${vendor}" = "Fedora Project" ]] \
+        && [[ "${HOSTNAME}" =~ bkernel.* ]]
+     then
+-	if [[ -S /run/pesign/socket ]] ; then
+-	    socket=/run/pesign/socket
+-	elif [[ -S /var/run/pesign/socket ]]; then
+-	    socket=/var/run/pesign/socket
+-	else
+-	    echo "Warning: no pesign socket even though user is ${USERNAME}" 1>&2
+-	    echo "Warning: if this is a non-scratch koji build, this is wrong" 1>&2
+-	    ls -ld /run/pesign /var/run/pesign 1>&2 ||:
+-	    ls -l /run/pesign/socket /var/run/pesign/socket 1>&2 ||:
+-	    getfacl /run/pesign /run/pesign/socket /var/run/pesign /var/run/pesign/socket 1>&2 ||:
+-	    getfacl -n /run/pesign /run/pesign/socket /var/run/pesign /var/run/pesign/socket 1>&2 ||:
+-	fi
++        echo "Warning: no pesign socket even though user is ${USERNAME}" 1>&2
++        echo "Warning: if this is a non-scratch koji build, this is wrong" 1>&2
++        ls -ld /run/pesign /var/run/pesign 1>&2 ||:
++        ls -l /run/pesign/socket /var/run/pesign/socket 1>&2 ||:
++        getfacl /run/pesign /run/pesign/socket /var/run/pesign /var/run/pesign/socket 1>&2 ||:
++        getfacl -n /run/pesign /run/pesign/socket /var/run/pesign /var/run/pesign/socket 1>&2 ||:
+     fi
+ 
+     if [[ "${rhelver}" -ge 7 ]] ; then

@@ -1,0 +1,149 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Mon, 29 Aug 2022 17:02:46 -0400
+Subject: [PATCH] CMS: add some minor cleanups
+
+We reverted 926782c216532a83f9ff864dee39d2349d61fd23 so that a future
+patch can try a different approach, but that commit also had a few
+cleanups that are worthwhile on their own.
+
+This patch re-introduces the cleanup to move "struct digest_param" to a
+more reasonable place and the cleanup to check_hash(), and takes it just
+a bit farther.
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/certdb.c     | 26 +++++++++++++++-----------
+ src/cms_common.c | 39 ++++++++++++++++-----------------------
+ src/cms_common.h | 16 ++++++++++++++++
+ 3 files changed, 47 insertions(+), 34 deletions(-)
+
+diff --git a/src/certdb.c b/src/certdb.c
+index 69d5daf..eb5221f 100644
+--- a/src/certdb.c
++++ b/src/certdb.c
+@@ -263,20 +263,24 @@ check_hash(pesigcheck_context *ctx, SECItem *sig, efi_guid_t *sigtype,
+ {
+ 	efi_guid_t efi_sha256 = efi_guid_sha256;
+ 	efi_guid_t efi_sha1 = efi_guid_sha1;
+-	void *digest;
++	void *digest_data;
++	struct digest *digests = ctx->cms_ctx->digests;
++	int selected_digest = -1;
++	size_t size;
+ 
+ 	if (memcmp(sigtype, &efi_sha256, sizeof(efi_guid_t)) == 0) {
+-		digest = ctx->cms_ctx->digests[0].pe_digest->data;
+-		if (memcmp (digest, sig->data, 32) == 0) {
+-			ctx->cms_ctx->selected_digest = 0;
+-			return FOUND;
+-		}
++		selected_digest = DIGEST_PARAM_SHA256;
+ 	} else if (memcmp(sigtype, &efi_sha1, sizeof(efi_guid_t)) == 0) {
+-		digest = ctx->cms_ctx->digests[1].pe_digest->data;
+-		if (memcmp (digest, sig->data, 20) == 0) {
+-			ctx->cms_ctx->selected_digest = 1;
+-			return FOUND;
+-		}
++		selected_digest = DIGEST_PARAM_SHA1;
++	} else {
++		return NOT_FOUND;
++	}
++
++	digest_data = digests[selected_digest].pe_digest->data;
++	size = digest_params[selected_digest].size;
++	if (memcmp (digest_data, sig->data, size) == 0) {
++		ctx->cms_ctx->selected_digest = selected_digest;
++		return FOUND;
+ 	}
+ 
+ 	return NOT_FOUND;
+diff --git a/src/cms_common.c b/src/cms_common.c
+index 86341ca..7bddedf 100644
+--- a/src/cms_common.c
++++ b/src/cms_common.c
+@@ -33,34 +33,27 @@
+ 
+ #include "hex.h"
+ 
+-struct digest_param {
+-	char *name;
+-	SECOidTag digest_tag;
+-	SECOidTag signature_tag;
+-	SECOidTag digest_encryption_tag;
+-	const efi_guid_t *efi_guid;
+-	int size;
+-};
+-
+-static struct digest_param digest_params[] = {
+-	{.name = "sha256",
+-	 .digest_tag = SEC_OID_SHA256,
+-	 .signature_tag = SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
+-	 .digest_encryption_tag = SEC_OID_PKCS1_RSA_ENCRYPTION,
+-	 .efi_guid = &efi_guid_sha256,
+-	 .size = 32
++const struct digest_param digest_params[] = {
++	[DIGEST_PARAM_SHA256] = {
++		.name = "sha256",
++		.digest_tag = SEC_OID_SHA256,
++		.signature_tag = SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
++		.digest_encryption_tag = SEC_OID_PKCS1_RSA_ENCRYPTION,
++		.efi_guid = &efi_guid_sha256,
++		.size = 32
+ 	},
+ #if 1
+-	{.name = "sha1",
+-	 .digest_tag = SEC_OID_SHA1,
+-	 .signature_tag = SEC_OID_PKCS1_SHA1_WITH_RSA_ENCRYPTION,
+-	 .digest_encryption_tag = SEC_OID_PKCS1_RSA_ENCRYPTION,
+-	 .efi_guid = &efi_guid_sha1,
+-	 .size = 20
++	[DIGEST_PARAM_SHA1] = {
++		.name = "sha1",
++		.digest_tag = SEC_OID_SHA1,
++		.signature_tag = SEC_OID_PKCS1_SHA1_WITH_RSA_ENCRYPTION,
++		.digest_encryption_tag = SEC_OID_PKCS1_RSA_ENCRYPTION,
++		.efi_guid = &efi_guid_sha1,
++		.size = 20
+ 	},
+ #endif
+ };
+-static int n_digest_params = sizeof (digest_params) / sizeof (digest_params[0]);
++const int n_digest_params = sizeof (digest_params) / sizeof (digest_params[0]);
+ 
+ SECOidTag
+ digest_get_digest_oid(cms_context *cms)
+diff --git a/src/cms_common.h b/src/cms_common.h
+index c7acbcf..e45402c 100644
+--- a/src/cms_common.h
++++ b/src/cms_common.h
+@@ -12,6 +12,7 @@
+ #include <secpkcs7.h>
+ 
+ #include <errno.h>
++#include <efivar.h>
+ #include <signal.h>
+ #include <stdarg.h>
+ #include <sys/types.h>
+@@ -62,6 +63,21 @@ struct digest {
+ 	SECItem *pe_digest;
+ };
+ 
++#define DIGEST_PARAM_SHA256	0
++#define DIGEST_PARAM_SHA1	1
++
++struct digest_param {
++	char *name;
++	SECOidTag digest_tag;
++	SECOidTag signature_tag;
++	SECOidTag digest_encryption_tag;
++	const efi_guid_t *efi_guid;
++	int size;
++};
++
++extern const struct digest_param digest_params[2];
++extern const int n_digest_params;
++
+ typedef struct pk12_file {
+ 	char *path;
+ 	int fd;

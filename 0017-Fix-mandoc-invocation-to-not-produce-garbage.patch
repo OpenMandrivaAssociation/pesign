@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Robbie Harwood <rharwood@redhat.com>
+Date: Thu, 7 Jul 2022 16:56:41 -0400
+Subject: [PATCH] Fix mandoc invocation to not produce garbage
+
+Bizarrely, mandoc doesn't default to outputting man - the default is
+"locale", which is either ASCII or UTF-8 (by locale).  This output is
+supposed to be some kind of plain-text, but it's formatted so strangely
+I'm not sure what the purpose is.  Regardless, it doesn't go well to
+feed this into man(1).
+
+Tell mandoc explicitly to produce man pages.
+
+Signed-off-by: Robbie Harwood <rharwood@redhat.com>
+---
+ Make.rules | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Make.rules b/Make.rules
+index 12e322b..f6bf5fa 100644
+--- a/Make.rules
++++ b/Make.rules
+@@ -54,7 +54,7 @@ define substitute-version =
+ endef
+ 
+ %.1 : %.1.mdoc
+-	@mandoc -man -Ios=Linux $^ > $@
++	@mandoc -man -T man -Ios=Linux $^ > $@
+ 
+ % : %.in
+ 	@$(call substitute-version,$<,$@)

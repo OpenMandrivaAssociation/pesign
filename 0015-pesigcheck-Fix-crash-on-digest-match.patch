@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Visa Hankala <visa@hankala.org>
+Date: Fri, 10 Jun 2022 13:25:13 +0000
+Subject: [PATCH] pesigcheck: Fix crash on digest match
+
+Set selected_digest when the digest is found in db or dbx.
+This fixes the following crash of pesigcheck:
+
+  Program received signal SIGSEGV, Segmentation fault.
+  0x00005555555597fa in memcpy (__len=24, __src=0x31,
+      __dest=0x55555558d908)
+      at /usr/include/x86_64-linux-gnu/bits/string_fortified.h:34
+  34      return __builtin___memcpy_chk (__dest, __src, __len, __bos0 (__dest));
+  (gdb) bt
+  #0  0x00005555555597fa in memcpy (__len=24, __src=0x31,
+      __dest=0x55555558d908)
+      at /usr/include/x86_64-linux-gnu/bits/string_fortified.h:34
+  #1  get_digest (digest=digest@entry=0x55555558d908,
+      ctx=<optimized out>, ctx=<optimized out>) at pesigcheck.c:226
+  #2  0x00005555555592fd in check_signature (
+      reasons=<synthetic pointer>, nreasons=<synthetic pointer>,
+      ctx=0x7fffffffded0) at pesigcheck.c:262
+  #3  main (argc=<optimized out>, argv=<optimized out>)
+      at pesigcheck.c:512
+
+Signed-off-by: Visa Hankala <visa@hankala.org>
+---
+ src/certdb.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/certdb.c b/src/certdb.c
+index e013b9d..69d5daf 100644
+--- a/src/certdb.c
++++ b/src/certdb.c
+@@ -267,12 +267,16 @@ check_hash(pesigcheck_context *ctx, SECItem *sig, efi_guid_t *sigtype,
+ 
+ 	if (memcmp(sigtype, &efi_sha256, sizeof(efi_guid_t)) == 0) {
+ 		digest = ctx->cms_ctx->digests[0].pe_digest->data;
+-		if (memcmp (digest, sig->data, 32) == 0)
++		if (memcmp (digest, sig->data, 32) == 0) {
++			ctx->cms_ctx->selected_digest = 0;
+ 			return FOUND;
++		}
+ 	} else if (memcmp(sigtype, &efi_sha1, sizeof(efi_guid_t)) == 0) {
+ 		digest = ctx->cms_ctx->digests[1].pe_digest->data;
+-		if (memcmp (digest, sig->data, 20) == 0)
++		if (memcmp (digest, sig->data, 20) == 0) {
++			ctx->cms_ctx->selected_digest = 1;
+ 			return FOUND;
++		}
+ 	}
+ 
+ 	return NOT_FOUND;

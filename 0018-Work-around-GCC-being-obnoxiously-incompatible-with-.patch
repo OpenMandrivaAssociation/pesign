@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Mon, 29 Aug 2022 15:31:52 -0400
+Subject: [PATCH] Work around GCC being obnoxiously incompatible with GCC
+
+GCC added and then later removed the diagnostic flag
+"-Wanalyzer-use-of-uninitialized-value", and so this doesn't work with
+newer versions of GCC.
+
+This patch removes the previous workaround for when it didn't work well.
+I really wish any of our compilers had any sense of rigor with this
+stuff at all.
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/daemon.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/src/daemon.c b/src/daemon.c
+index ff88210..d66dd50 100644
+--- a/src/daemon.c
++++ b/src/daemon.c
+@@ -917,10 +917,6 @@ do_shutdown(context *ctx, int nsockets, struct pollfd *pollfds)
+ 	free(pollfds);
+ }
+ 
+-/* GCC -fanalyzer has trouble with realloc
+- * https://bugzilla.redhat.com/show_bug.cgi?id=2047926 */
+-#pragma GCC diagnostic push
+-#pragma GCC diagnostic ignored "-Wanalyzer-use-of-uninitialized-value"
+ static int
+ handle_events(context *ctx)
+ {
+@@ -999,7 +995,6 @@ shutdown:
+ 	}
+ 	return 0;
+ }
+-#pragma GCC diagnostic pop
+ 
+ static int
+ get_uid_and_gid(context *ctx, char **homedir)

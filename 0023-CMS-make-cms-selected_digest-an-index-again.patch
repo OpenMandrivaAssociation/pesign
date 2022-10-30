@@ -1,0 +1,291 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Peter Jones <pjones@redhat.com>
+Date: Tue, 30 Aug 2022 15:42:15 -0400
+Subject: [PATCH] CMS: make cms->selected_digest an index (again)
+
+In 926782c216532a83f9ff864dee39d2349d61fd23, we switched
+cms->selected_digest to be a pointer to the entry in cms->digests.
+
+Because cms->digests is lazily allocated, setting the selected_digest
+pointer has to be done at the right part of the CMS context life cycle,
+and in some cases it clearly is not:
+
+==334217== Command: ./src/pesign -n tmp -s --pinfile tmp/pinfile -t OpenSC\ Card\ (testcard) -c kernel-signer -i tmp/unsigned.efi -o tmp/signed.efi --force
+==334217==
+==334217== Invalid read of size 8
+==334217==    at 0x115E7D: digest_get_digest_oid (cms_common.c:59)
+==334217==    by 0x11CF41: generate_algorithm_id_list (signed_data.c:33)
+==334217==    by 0x11D348: generate_spc_signed_data (signed_data.c:279)
+==334217==    by 0x11EDFD: calculate_signature_space (wincert.c:297)
+==334217==    by 0x11467D: pe_handle_action (file_pe.c:298)
+==334217==    by 0x10F962: main (pesign.c:585)
+==334217==  Address 0x10 is not stack'd, malloc'd or (recently) free'd
+==334217==
+==334217==
+==334217== Process terminating with default action of signal 11 (SIGSEGV): dumping core
+==334217==  Access not within mapped region at address 0x10
+==334217==    at 0x115E7D: digest_get_digest_oid (cms_common.c:59)
+==334217==    by 0x11CF41: generate_algorithm_id_list (signed_data.c:33)
+==334217==    by 0x11D348: generate_spc_signed_data (signed_data.c:279)
+==334217==    by 0x11EDFD: calculate_signature_space (wincert.c:297)
+==334217==    by 0x11467D: pe_handle_action (file_pe.c:298)
+==334217==    by 0x10F962: main (pesign.c:585)
+==334217==  If you believe this happened as a result of a stack
+==334217==  overflow in your program's main thread (unlikely but
+==334217==  possible), you can try to increase the size of the
+==334217==  main thread stack using the --main-stacksize= flag.
+==334217==  The main thread stack size used in this run was 8388608.
+==334217==
+==334217== HEAP SUMMARY:
+==334217==     in use at exit: 588,544 bytes in 4,388 blocks
+==334217==   total heap usage: 8,568 allocs, 4,180 frees, 2,077,115 bytes allocated
+==334217==
+==334217== LEAK SUMMARY:
+==334217==    definitely lost: 25 bytes in 1 blocks
+==334217==    indirectly lost: 0 bytes in 0 blocks
+==334217==      possibly lost: 51,378 bytes in 166 blocks
+==334217==    still reachable: 537,141 bytes in 4,221 blocks
+==334217==                       of which reachable via heuristic:
+==334217==                         length64           : 321,312 bytes in 590 blocks
+==334217==         suppressed: 0 bytes in 0 blocks
+==334217== Rerun with --leak-check=full to see details of leaked memory
+==334217==
+==334217== For lists of detected and suppressed errors, rerun with: -s
+==334217== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
+Segmentation fault (core dumped)
+
+There is also a similar issue in the daemon code, and how to fix it
+there is not immediately clear to me.
+
+Currently, we realistically only support using sha256 digests, so for
+now I've chosen to paper over the issue by switching back to
+cms->selected_digest be an index into both ctx->digests and
+digest_params, but switching the default value from -1 to 0, aka
+DIGEST_PARAM_SHA256.  We can revisit this issue later whenever we add
+sha384 support (or whichever other digest).
+
+Signed-off-by: Peter Jones <pjones@redhat.com>
+---
+ src/certdb.c       |  2 +-
+ src/cms_common.c   | 41 +++++++++++++++++++++++------------------
+ src/content_info.c |  2 +-
+ src/cms_common.h   |  5 +++--
+ 4 files changed, 28 insertions(+), 22 deletions(-)
+
+diff --git a/src/certdb.c b/src/certdb.c
+index eb5221f..467a01d 100644
+--- a/src/certdb.c
++++ b/src/certdb.c
+@@ -265,7 +265,7 @@ check_hash(pesigcheck_context *ctx, SECItem *sig, efi_guid_t *sigtype,
+ 	efi_guid_t efi_sha1 = efi_guid_sha1;
+ 	void *digest_data;
+ 	struct digest *digests = ctx->cms_ctx->digests;
+-	int selected_digest = -1;
++	unsigned int selected_digest;
+ 	size_t size;
+ 
+ 	if (memcmp(sigtype, &efi_sha256, sizeof(efi_guid_t)) == 0) {
+diff --git a/src/cms_common.c b/src/cms_common.c
+index 7bddedf..1c54c90 100644
+--- a/src/cms_common.c
++++ b/src/cms_common.c
+@@ -33,6 +33,10 @@
+ 
+ #include "hex.h"
+ 
++/*
++ * Note that cms->selected_digest defaults to 0, which means the first
++ * entry of this array is the default digest.
++ */
+ const struct digest_param digest_params[] = {
+ 	[DIGEST_PARAM_SHA256] = {
+ 		.name = "sha256",
+@@ -53,33 +57,33 @@ const struct digest_param digest_params[] = {
+ 	},
+ #endif
+ };
+-const int n_digest_params = sizeof (digest_params) / sizeof (digest_params[0]);
++const unsigned int n_digest_params = sizeof (digest_params) / sizeof (digest_params[0]);
+ 
+ SECOidTag
+ digest_get_digest_oid(cms_context *cms)
+ {
+-	int i = cms->selected_digest;
++	unsigned int i = cms->selected_digest;
+ 	return digest_params[i].digest_tag;
+ }
+ 
+ SECOidTag
+ digest_get_encryption_oid(cms_context *cms)
+ {
+-	int i = cms->selected_digest;
++	unsigned int i = cms->selected_digest;
+ 	return digest_params[i].digest_encryption_tag;
+ }
+ 
+ SECOidTag
+ digest_get_signature_oid(cms_context *cms)
+ {
+-	int i = cms->selected_digest;
++	unsigned int i = cms->selected_digest;
+ 	return digest_params[i].signature_tag;
+ }
+ 
+ int
+ digest_get_digest_size(cms_context *cms)
+ {
+-	int i = cms->selected_digest;
++	unsigned int i = cms->selected_digest;
+ 	return digest_params[i].size;
+ }
+ 
+@@ -91,7 +95,7 @@ teardown_digests(cms_context *ctx)
+ 	if (!digests)
+ 		return;
+ 
+-	for (int i = 0; i < n_digest_params; i++) {
++	for (unsigned int i = 0; i < n_digest_params; i++) {
+ 		if (digests[i].pk11ctx) {
+ 			PK11_Finalize(digests[i].pk11ctx);
+ 			PK11_DestroyContext(digests[i].pk11ctx, PR_TRUE);
+@@ -135,7 +139,7 @@ cms_context_init(cms_context *cms)
+ 	if (!cms->arena)
+ 		cnreterr(-1, cms, "could not create cryptographic arena");
+ 
+-	cms->selected_digest = -1;
++	cms->selected_digest = DEFAULT_DIGEST_PARAM;
+ 
+ 	INIT_LIST_HEAD(&cms->pk12_ins);
+ 	cms->pk12_out.fd = -1;
+@@ -219,7 +223,7 @@ cms_context_fini(cms_context *cms)
+ 		memset(&cms->newsig, '\0', sizeof (cms->newsig));
+ 	}
+ 
+-	cms->selected_digest = -1;
++	cms->selected_digest = DEFAULT_DIGEST_PARAM;
+ 
+ 	if (cms->ci_digest) {
+ 		free_poison(cms->ci_digest->data, cms->ci_digest->len);
+@@ -342,7 +346,7 @@ int
+ set_digest_parameters(cms_context *cms, char *name)
+ {
+ 	if (strcmp(name, "help")) {
+-		for (int i = 0; i < n_digest_params; i++) {
++		for (unsigned int i = 0; i < n_digest_params; i++) {
+ 			if (!strcmp(name, digest_params[i].name)) {
+ 				cms->selected_digest = i;
+ 				return 0;
+@@ -350,7 +354,7 @@ set_digest_parameters(cms_context *cms, char *name)
+ 		}
+ 	} else {
+ 		printf("Supported digests: ");
+-		for (int i = 0; digest_params[i].name != NULL; i++) {
++		for (unsigned int i = 0; digest_params[i].name != NULL; i++) {
+ 			printf("%s ", digest_params[i].name);
+ 		}
+ 		printf("\n");
+@@ -1265,7 +1269,7 @@ generate_digest_begin(cms_context *cms)
+ 			cnreterr(-1, cms, "could not allocate digest context");
+ 	}
+ 
+-	for (int i = 0; i < n_digest_params; i++) {
++	for (unsigned int i = 0; i < n_digest_params; i++) {
+ 		digests[i].pk11ctx = PK11_CreateDigestContext(
+ 						digest_params[i].digest_tag);
+ 		if (!digests[i].pk11ctx)
+@@ -1278,7 +1282,7 @@ generate_digest_begin(cms_context *cms)
+ 	return 0;
+ 
+ err:
+-	for (int i = 0; i < n_digest_params; i++) {
++	for (unsigned int i = 0; i < n_digest_params; i++) {
+ 		if (digests[i].pk11ctx)
+ 			PK11_DestroyContext(digests[i].pk11ctx, PR_TRUE);
+ 	}
+@@ -1290,7 +1294,7 @@ err:
+ void
+ generate_digest_step(cms_context *cms, void *data, size_t len)
+ {
+-	for (int i = 0; i < n_digest_params; i++)
++	for (unsigned int i = 0; i < n_digest_params; i++)
+ 		PK11_DigestOp(cms->digests[i].pk11ctx, data, len);
+ }
+ 
+@@ -1299,7 +1303,7 @@ generate_digest_finish(cms_context *cms)
+ {
+ 	void *mark = PORT_ArenaMark(cms->arena);
+ 
+-	for (int i = 0; i < n_digest_params; i++) {
++	for (unsigned int i = 0; i < n_digest_params; i++) {
+ 		SECItem *digest = PORT_ArenaZAlloc(cms->arena,sizeof (SECItem));
+ 		if (digest == NULL)
+ 			cngotoerr(err, cms, "could not allocate memory");
+@@ -1326,7 +1330,7 @@ generate_digest_finish(cms_context *cms)
+ 	PORT_ArenaUnmark(cms->arena, mark);
+ 	return 0;
+ err:
+-	for (int i = 0; i < n_digest_params; i++) {
++	for (unsigned int i = 0; i < n_digest_params; i++) {
+ 		if (cms->digests[i].pk11ctx)
+ 			PK11_DestroyContext(cms->digests[i].pk11ctx, PR_TRUE);
+ 	}
+@@ -1343,12 +1347,13 @@ int
+ generate_signature(cms_context *cms)
+ {
+ 	int rc = 0;
++	int i = cms->selected_digest;
+ 
+-	if (cms->digests[cms->selected_digest].pe_digest == NULL)
++	if (cms->digests[i].pe_digest == NULL)
+ 		cnreterr(-1, cms, "PE digest has not been allocated");
+ 
+-	if (content_is_empty(cms->digests[cms->selected_digest].pe_digest->data,
+-			cms->digests[cms->selected_digest].pe_digest->len))
++	if (content_is_empty(cms->digests[i].pe_digest->data,
++			cms->digests[i].pe_digest->len))
+ 		cnreterr(-1, cms, "PE binary has not been digested");
+ 
+ 	SECItem sd_der;
+diff --git a/src/content_info.c b/src/content_info.c
+index 9684850..900974c 100644
+--- a/src/content_info.c
++++ b/src/content_info.c
+@@ -181,7 +181,7 @@ generate_spc_digest_info(cms_context *cms, SECItem *dip)
+ 	if (generate_algorithm_id(cms, &di.digestAlgorithm,
+ 			digest_get_digest_oid(cms)) < 0)
+ 		return -1;
+-	int i = cms->selected_digest;
++	unsigned int i = cms->selected_digest;
+ 	memcpy(&di.digest, cms->digests[i].pe_digest, sizeof (di.digest));
+ 
+ 	if (content_is_empty(di.digest.data, di.digest.len)) {
+diff --git a/src/cms_common.h b/src/cms_common.h
+index e45402c..35a128a 100644
+--- a/src/cms_common.h
++++ b/src/cms_common.h
+@@ -65,6 +65,7 @@ struct digest {
+ 
+ #define DIGEST_PARAM_SHA256	0
+ #define DIGEST_PARAM_SHA1	1
++#define DEFAULT_DIGEST_PARAM	DIGEST_PARAM_SHA256
+ 
+ struct digest_param {
+ 	char *name;
+@@ -76,7 +77,7 @@ struct digest_param {
+ };
+ 
+ extern const struct digest_param digest_params[2];
+-extern const int n_digest_params;
++extern const unsigned int n_digest_params;
+ 
+ typedef struct pk12_file {
+ 	char *path;
+@@ -149,7 +150,7 @@ typedef struct cms_context {
+ 	int db_out, dbx_out, dbt_out;
+ 
+ 	struct digest *digests;
+-	int selected_digest;
++	unsigned int selected_digest;
+ 	int omit_vendor_cert;
+ 
+ 	SECItem newsig;
