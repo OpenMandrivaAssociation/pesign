@@ -34,6 +34,7 @@ Patch0023:	0023-CMS-make-cms-selected_digest-an-index-again.patch
 
 # Our own patches
 Patch1000:	pesign-0.112-pass-linker-flags-correctly.patch
+BuildRequires:	make
 BuildRequires:	pkgconfig(efivar)
 BuildRequires:	pkgconfig(uuid)
 BuildRequires:	gnu-efi
