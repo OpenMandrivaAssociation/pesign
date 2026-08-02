@@ -8,16 +8,11 @@ Signed-off-by: Robbie Harwood <rharwood@redhat.com>
  Make.defaults | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/Make.defaults b/Make.defaults
-index 1c18904..05aadd0 100644
---- a/Make.defaults
-+++ b/Make.defaults
-@@ -79,7 +79,7 @@ ccldflags = $(cflags) $(CCLDFLAGS) $(LDFLAGS) \
- 	$(call pkg-config-ccldflags)
- efi_cflags = $(cflags)
- ASFLAGS	?= $(ARCH3264)
--CPPFLAGS ?= -D_FORTIFY_SOURCE=2
-+CPPFLAGS ?= -D_FORTIFY_SOURCE=2 -D_GLIBCXX_ASSERTIONS
- RANLIBFLAGS	?= $(if $(filter $(CC),gcc),-D)
- ARFLAGS ?= $(if $(filter $(CC),gcc),-Dcvqs)$(if $(filter $(CC),clang),-cqvs)
- 
+NOTE: This change is already present in pesign 116. The patch body is a no-op so the packaging series continues to apply cleanly after the version bump.
+
+diff --git a/TODO b/TODO
+--- a/TODO
++++ b/TODO
+@@ -1 +1 @@
+-Stuff that needs to get done:
++Stuff that needs to get done:

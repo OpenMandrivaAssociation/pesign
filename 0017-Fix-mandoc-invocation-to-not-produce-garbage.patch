@@ -16,16 +16,11 @@ Signed-off-by: Robbie Harwood <rharwood@redhat.com>
  Make.rules | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/Make.rules b/Make.rules
-index 12e322b..f6bf5fa 100644
---- a/Make.rules
-+++ b/Make.rules
-@@ -54,7 +54,7 @@ define substitute-version =
- endef
- 
- %.1 : %.1.mdoc
--	@mandoc -man -Ios=Linux $^ > $@
-+	@mandoc -man -T man -Ios=Linux $^ > $@
- 
- % : %.in
- 	@$(call substitute-version,$<,$@)
+NOTE: This change is already present in pesign 116. The patch body is a no-op so the packaging series continues to apply cleanly after the version bump.
+
+diff --git a/TODO b/TODO
+--- a/TODO
++++ b/TODO
+@@ -1 +1 @@
+-Stuff that needs to get done:
++Stuff that needs to get done:

@@ -1,7 +1,7 @@
 Summary:	Signing utility for UEFI binaries
 Name:		pesign
-Version:	115
-Release:	2
+Version:	116
+Release:	1
 Group:		Development/Other
 License:	GPLv2
 URL:		https://github.com/rhinstaller/pesign
@@ -33,7 +33,7 @@ Patch0022:	0022-CMS-add-some-minor-cleanups.patch
 Patch0023:	0023-CMS-make-cms-selected_digest-an-index-again.patch
 
 # Our own patches
-Patch1000:	pesign-0.112-pass-linker-flags-correctly.patch
+Patch1000:	pesign-116-pass-linker-flags-correctly.patch
 BuildRequires:	make
 BuildRequires:	pkgconfig(efivar)
 BuildRequires:	pkgconfig(uuid)

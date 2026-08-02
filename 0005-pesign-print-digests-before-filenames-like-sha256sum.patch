@@ -11,21 +11,11 @@ Signed-off-by: Peter Jones <pjones@redhat.com>
  src/file_pe.c | 3 +--
  1 file changed, 1 insertion(+), 2 deletions(-)
 
-diff --git a/src/file_pe.c b/src/file_pe.c
-index fed6edb..805e614 100644
---- a/src/file_pe.c
-+++ b/src/file_pe.c
-@@ -121,12 +121,11 @@ print_digest(pesign_context *pctx)
- 	if (!ctx)
- 		return;
- 
--	printf("%s ", pctx->infile);
- 	int j = ctx->selected_digest;
- 	for (unsigned int i = 0; i < ctx->digests[j].pe_digest->len; i++)
- 		printf("%02x",
- 			(unsigned char)ctx->digests[j].pe_digest->data[i]);
--	printf("\n");
-+	printf(" %s\n", pctx->infile);
- }
- 
- void
+NOTE: This change is already present in pesign 116. The patch body is a no-op so the packaging series continues to apply cleanly after the version bump.
+
+diff --git a/TODO b/TODO
+--- a/TODO
++++ b/TODO
+@@ -1 +1 @@
+-Stuff that needs to get done:
++Stuff that needs to get done:

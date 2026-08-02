@@ -10,16 +10,11 @@ Signed-off-by: Robbie Harwood <rharwood@redhat.com>
  src/pesign-rpmbuild-helper.in | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/src/pesign-rpmbuild-helper.in b/src/pesign-rpmbuild-helper.in
-index c9d5570..9dee56e 100644
---- a/src/pesign-rpmbuild-helper.in
-+++ b/src/pesign-rpmbuild-helper.in
-@@ -190,7 +190,7 @@ main() {
-         getfacl -n /run/pesign /run/pesign/socket /var/run/pesign /var/run/pesign/socket 1>&2 ||:
-     fi
- 
--    if [[ "${rhelver}" -ge 7 ]] ; then
-+    if [[ "${rhelver}" -ge 7 ]] && which rpm-sign >&/dev/null ; then
- 	nssdir="$(mktemp -p "${PWD}" -d)"
- 	echo > "${nssdir}/pwfile"
- 	certutil -N -d "${nssdir}" -f "${nssdir}/pwfile"
+NOTE: This change is already present in pesign 116. The patch body is a no-op so the packaging series continues to apply cleanly after the version bump.
+
+diff --git a/TODO b/TODO
+--- a/TODO
++++ b/TODO
+@@ -1 +1 @@
+-Stuff that needs to get done:
++Stuff that needs to get done:

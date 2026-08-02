@@ -1,0 +1,11 @@
+# Pass linker flags correctly (-Wl, not --Wl) in Make.defaults gcc_ccldflags.
+# Originally needed for pesign 0.112; fixed upstream by 116.
+
+NOTE: This change is already present in pesign 116. The patch body is a no-op so the packaging series continues to apply cleanly after the version bump.
+
+diff --git a/TODO b/TODO
+--- a/TODO
++++ b/TODO
+@@ -1 +1 @@
+-Stuff that needs to get done:
++Stuff that needs to get done:

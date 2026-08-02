@@ -8,16 +8,11 @@ Signed-off-by: Matt Bernhard <mdb92nc@gmail.com>
  README.md | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/README.md b/README.md
-index 7bbd6dd..b6949a2 100644
---- a/README.md
-+++ b/README.md
-@@ -12,7 +12,7 @@ except for Linux.)
- Generate a key for use with pesign, stored on disk:
- 
- ```
--efikeyen -d /etc/pki/pesign -S -TYPE -c 'CN=Your Name Key' -n 'Custom Secureboot'
-+efikeygen -d /etc/pki/pesign -S -TYPE -c 'CN=Your Name Key' -n 'Custom Secureboot'
- ```
- 
- (where TYPE is m if you're only signing kernel modules, and k otherwise).
+NOTE: This change is already present in pesign 116. The patch body is a no-op so the packaging series continues to apply cleanly after the version bump.
+
+diff --git a/TODO b/TODO
+--- a/TODO
++++ b/TODO
+@@ -1 +1 @@
+-Stuff that needs to get done:
++Stuff that needs to get done:
